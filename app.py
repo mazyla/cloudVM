@@ -1,6 +1,7 @@
 import os
 from flask import (Flask, request)
 import face_recognition as fc
+import json
 
 app = Flask(__name__)
 print("__name__ is", __name__)
@@ -56,9 +57,11 @@ def findFace(name_to_save):
 @app.route('/sqlQuery', methods=['GET', 'POST'])
 def sqlQuery():
     if request.method == 'POST':
-        file = request.files['queryString']
-        print(file)
-        return "Success: Smoke"
+        #file = request.files['queryString']
+        print(request.files)
+        data = {}
+        data['name'] = 'Mario'
+        return json.dumps(data)
 
 
 if __name__ == '__main__':
