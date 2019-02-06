@@ -58,6 +58,7 @@ def sqlQuery():
     if request.method == 'POST':
         file = request.files['queryString']
         print(file)
+        return "Success: Smoke"
 
 
 if __name__ == '__main__':
