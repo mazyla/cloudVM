@@ -41,6 +41,8 @@ names = ["Rolando", "Mario", "Mario"] # same index as when added to face encodin
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+
+
 # Handle uploading an image
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -77,20 +79,119 @@ def findFace(name_to_save):
 
 # Handle GET SQL queries
 @app.route('/sqlQuery', methods=['GET', 'POST'])
-def sqlQuery():
+# Get request from iphone
+# request object needs to be handled different;y for GET and POST
+def getIphoneRequest():
+    # Get a user from the database
     if request.method == 'GET':
-        print("Query to run: ", request.args['query'])
-        cursor.execute(request.args['query']) # run query, send to SQL server
-        row = cursor.fetchone() # get first line of result
-        iphone_response = {} # so that we can have a json format
-        i = 0
+        queryResults = buildQuery( request.args )
+        return queryResults
+
+    
+    # TO BE ORGANIZED
+    #if request.method == 'GET':
+        #print("Query to run: ", request.args['infoRequested'])
+        # different requests coming from iPhone
+        #queryResults = buildQuery("allUsersInfo", None)
+        #return queryResults
+    if request.method == 'POST':
+        queryResults = buildQuery( request.get_json() )
+        return queryResults
+        
+        #print("Key of json", request.get_json().get('users'))
+        #if request.get_json().get('addUsers') != None:
+        #    #get all users in post request
+        #    users = request.get_json().get('addUsers')
+        #    print("Users ", users)
+            # users is a dictionary with many users with id as key and 
+            # another dictionary as values. The values dictionary has 
+            # db fields as keys and its values as values "first": "Aleksander"
+            #for userID in users.keys():
+                #print("userID ", userID)
+        #    queryResult = buildQuery("addUsers", users)
+        #    return queryResult
+        #print("iPhone is trying to store: ", request.get_json())
+        
+        #print("Dictionary of users: ", toStore)
+
+
+def buildQuery( iphoneRequest ):
+    # Attributes for Users and Friends
+    userKeys = ['id','firstName','lastName','email', 'password']
+    friendsKeys = ['id','firstName','lastName','comeInDays','doorNotification']
+
+    infoRequested = iphoneRequest.get('infoRequested')
+    
+    # Get all the users from DB
+    if infoRequested == "allUsersInfo":
+        query = "SELECT * FROM App_User;"
+    
+    if infoRequested == "addUsers":
+        dataToAdd = iphoneRequest.get("addUsers")
+        for userId, user in dataToAdd.items():
+            # Get proper query to add user  
+            firstName = user.get("first")
+            lastName = user.get("last")
+            email = user.get("email")
+            query = "INSERT INTO App_User VALUES (%d,'%s','%s','%s')" % ( int(userId), firstName, lastName, email )
+            cursor.execute(query)
+            cnxn.commit()            
+        return 'SUCCESS' 
+    
+    # Gets a user from the database if found
+    if infoRequested == "getUserAuthentication":
+        email = iphoneRequest.get("email")
+        password = iphoneRequest.get("password")
+
+        # Get users
+        query = "SELECT * FROM UserInfo WHERE UserEmail = '%s' AND UserPassword = '%s' " % ( email, password ) 
+        cursor.execute(query)
+        row = cursor.fetchone()
+        
+        if row == None:
+            return json.dumps( {'Failure': '0'} )
+        userList = [ x for x in row ]  
+        userDic = myList2Dic( userKeys, userList )  
+        # Get friends 
+        query2 = "SELECT F.* FROM UserInfo U, Friend F WHERE U.UserId = %d AND U.UserId = F.UserId" % ( userList[0] ) 
+        cursor.execute(query2)
+        
+        # parse all friends
+        friendsDic = {}
+        row = cursor.fetchone()
         while row:
-             print(row)
-             iphone_response[i] = str(row) # each result has its own key, consecutively
-             row = cursor.fetchone()
-             i += 1
+            friendList = [ x for x in row ]
+            # Get dictionary from friend without foreign key
+            friendsDic[ friendList[0] ] = myList2Dic( friendsKeys, friendList[:-1] )
+            row = cursor.fetchone()
+        
+        userDic['friends'] = friendsDic 
+
+        return json.dumps( userDic )
+
+    
+    else:
+        cursor.execute("SELECT * FROM App_User")
+        row = cursor.fetchone()  # get first line of result
+        iphone_response = {}  # so that we can have a json format
+
+        while row:  # for as long as we have data in the table in db
+            print("Row:", row)
+            rowList = [ x for x in row ]  # list of data for a single row
+            print("rowlist: ", rowList )
+            uID = rowList[0]
+            iphone_response[ uID ] = rowList  # userID: [user data]
+            row = cursor.fetchone()
+        
         return json.dumps(iphone_response)
 
+# Returns a dictionary with the given keys and values 
+def myList2Dic( keys , myList ):
+    myDic = {}
+    for idx, val in enumerate(myList):
+        myDic[ keys[idx] ] = myList[ idx ]
+
+    return myDic
 
 if __name__ == '__main__':
     # app.run(host="13.68.140.235", port="5007")
